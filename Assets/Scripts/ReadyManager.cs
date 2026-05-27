@@ -1,4 +1,5 @@
-﻿using Unity.Netcode;
+using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -6,8 +7,9 @@ public class ReadyManager : NetworkBehaviour
 {
     public static ReadyManager Instance;
 
+    private readonly HashSet<ulong> readyClients = new HashSet<ulong>();
     private NetworkVariable<int> readyCount = new NetworkVariable<int>(0);
-    private NetworkVariable<int> playerCount = new NetworkVariable<int>(1); // Host mặc định = 1
+    private NetworkVariable<int> playerCount = new NetworkVariable<int>(1);
 
     void Awake()
     {
@@ -17,38 +19,95 @@ public class ReadyManager : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
-        readyCount.OnValueChanged += (old, newVal) => LobbyUI.Instance.UpdateReadyStatus(newVal, playerCount.Value);
-        playerCount.OnValueChanged += (old, newVal) => LobbyUI.Instance.UpdateReadyStatus(readyCount.Value, newVal);
+        readyCount.OnValueChanged += OnReadyCountChanged;
+        playerCount.OnValueChanged += OnPlayerCountChanged;
 
         if (IsServer)
         {
-            NetworkManager.Singleton.OnClientConnectedCallback += (id) =>
-            {
-                if (id != NetworkManager.Singleton.LocalClientId)
-                    playerCount.Value++;
-            };
-
-            NetworkManager.Singleton.OnClientDisconnectCallback += (id) =>
-            {
-                playerCount.Value--;
-            };
+            SyncPlayerCount();
+            NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
         }
+
+        UpdateLobbyReadyStatus();
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        readyCount.OnValueChanged -= OnReadyCountChanged;
+        playerCount.OnValueChanged -= OnPlayerCountChanged;
+
+        if (IsServer && NetworkManager.Singleton != null)
+        {
+            NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
+            NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+        }
+
+        if (Instance == this)
+            Instance = null;
+    }
+
+    public override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        if (Instance == this)
+            Instance = null;
+    }
+
+    void OnReadyCountChanged(int oldValue, int newValue)
+    {
+        UpdateLobbyReadyStatus();
+    }
+
+    void OnPlayerCountChanged(int oldValue, int newValue)
+    {
+        UpdateLobbyReadyStatus();
+    }
+
+    void UpdateLobbyReadyStatus()
+    {
+        if (LobbyUI.Instance == null) return;
+        LobbyUI.Instance.UpdateReadyStatus(readyCount.Value, playerCount.Value);
+    }
+
+    void OnClientConnected(ulong clientId)
+    {
+        SyncPlayerCount();
+    }
+
+    void OnClientDisconnected(ulong clientId)
+    {
+        if (readyClients.Remove(clientId))
+            readyCount.Value = readyClients.Count;
+
+        SyncPlayerCount();
+    }
+
+    void SyncPlayerCount()
+    {
+        playerCount.Value = NetworkManager.Singleton.ConnectedClientsList.Count;
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    public void PlayerReadyServerRpc()
+    public void PlayerReadyServerRpc(RpcParams rpcParams = default)
     {
-        readyCount.Value++;
+        ulong senderClientId = rpcParams.Receive.SenderClientId;
 
-        // Nếu host muốn tự ready luôn thì uncomment dòng dưới
-        // if (readyCount.Value >= playerCount.Value) ...
+        if (!readyClients.Add(senderClientId))
+            return;
+
+        readyCount.Value = readyClients.Count;
     }
 
-    public bool CanStart() => readyCount.Value >= playerCount.Value && playerCount.Value > 1;
+    public bool CanStart()
+    {
+        return IsServer && readyCount.Value >= playerCount.Value && playerCount.Value > 1;
+    }
 
     public void StartGame()
     {
-        if (IsServer)
-            NetworkManager.Singleton.SceneManager.LoadScene("GameplayScene", LoadSceneMode.Single);
+        if (!CanStart()) return;
+        NetworkManager.Singleton.SceneManager.LoadScene("GameplayScene", LoadSceneMode.Single);
     }
 }
