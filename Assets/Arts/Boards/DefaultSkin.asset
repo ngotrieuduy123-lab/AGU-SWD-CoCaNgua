@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7dda1832fcde55a48a0d3c567a939e33, type: 3}
+  m_Name: DefaultSkin
+  m_EditorClassIdentifier: Assembly-CSharp::BoardSkin
+  boardSprite: {fileID: -2567716879219615695, guid: 3df6a97b827d9ad47b045ca39e2fe76b, type: 3}
+  pieceSprites:
+  - {fileID: -2365034253643695203, guid: 18fdcb99407de60409fbc6cbab7412c3, type: 3}
+  - {fileID: -773101374306132413, guid: 18fdcb99407de60409fbc6cbab7412c3, type: 3}
+  - {fileID: -4933438307092678383, guid: 18fdcb99407de60409fbc6cbab7412c3, type: 3}
+  - {fileID: -4589626800848242624, guid: 18fdcb99407de60409fbc6cbab7412c3, type: 3}
